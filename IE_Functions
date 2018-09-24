@@ -1,0 +1,429 @@
+using System;
+using System.Diagnostics;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Threading;
+using SHDocVw;
+using mshtml;
+
+namespace Neuro
+{
+    class IELib
+    {
+        public static SHDocVw.InternetExplorer GetIEHandle(SHDocVw.ShellWindows shell, string Desired, bool i)
+        {
+            /*
+             * Get the names of all shell windows to see if the desired instance exists.
+             * if the instance exists, the IE object is returned.
+             * if the instance does not exist, the instance is created and returned.
+             * Bool j is used to tell if the instance was found and wether or not to start a new instance
+             */
+            bool j = i;
+            foreach (SHDocVw.InternetExplorer wb in shell)
+            {
+                if (wb.LocationName == Desired)
+                {
+                    j = true;
+                    Console.WriteLine(wb.LocationName + " Found Successfully");
+                    Console.WriteLine("Returning " + wb.LocationName + " as object.");
+                    return wb;
+                }
+                Console.WriteLine(wb.LocationName);
+            }
+            Console.WriteLine("Shell not found, Starting new IE instance for " + Desired + ".fyiblue.com/arisui/login.htm");
+            string newInstance = Desired + ".fyiblue.com/arisui/login.htm";
+            Process.Start("iexplore.exe", newInstance);
+            while (j != true)
+            {
+                foreach (SHDocVw.InternetExplorer wb in shell)
+                {
+                    if (wb.LocationName == Desired)
+                    {
+                        j = true;
+                        if (IeWait(wb))
+                        { return wb; }
+                    }
+                }
+            }
+            return null;
+        }
+
+        public static SHDocVw.InternetExplorer IEGet(SHDocVw.ShellWindows shell, string Desired)
+        {
+            foreach (SHDocVw.InternetExplorer wb in shell)
+            {
+                if (wb.LocationName == Desired)
+                {
+                    Console.WriteLine(wb.LocationName + " Found Successfully");
+                    //Console.WriteLine("Returning " + wb.LocationName + " as object.");
+                    return wb;
+                }
+            }
+            return null;
+        }
+
+        public static bool IeWait(SHDocVw.InternetExplorer wb)
+        {
+            int counter = 0;
+            Console.WriteLine("Waiting for window to load.");
+            while (wb.ReadyState != tagREADYSTATE.READYSTATE_COMPLETE)
+            {
+                Thread.Sleep(500); Console.Write(counter);
+                counter++;
+                if (counter == 15)
+                {
+                    break;
+                }
+            }
+            Console.WriteLine("Site READYSTATE = Complete.");
+            return true;
+        }
+
+        public static void Login(InternetExplorer wb, mshtml.HTMLDocument wbDoc, string pass)
+        {
+            // Login to the ARIS page.
+            wbDoc.getElementById("userName").innerText = System.Environment.UserName;
+            wbDoc.getElementById("dijit_form_TextBox_0").innerText = pass;
+            wbDoc.getElementById("dijit_form_Button_0_label").click();
+
+        }
+
+        public static void IETitleComparison(SHDocVw.InternetExplorer wb, ShellWindows shells, bool sameScreen)
+        {
+            string previous = wb.LocationURL;
+            Console.WriteLine("Searching against: " + previous);
+            int c = 0; // Counter used to ensure adequate time has passed and allow the site to cycle URL's
+            bool j = true;
+            while (j)
+            {
+                foreach (InternetExplorer ie in shells)
+                {
+                    if (ie.HWND == wb.HWND)
+                    {
+                        if (sameScreen != true)
+                        {
+                            if (ie.LocationURL != previous)
+                            {
+                                c++;
+                            }
+                            else
+                            {
+                                c = 0;
+                            }
+                            if (c == 450)
+                            {
+                                j = false;
+                                break;
+                            }
+                        }
+                        else
+                        {
+                            c++;
+                            if (c == 450)
+                            {
+                                j = false;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        public static InternetExplorer NewBrowser(SHDocVw.ShellWindows shells, string desiredShell, string url)
+        {
+            Process.Start("iexplore.exe", url);
+            bool j = false;
+            while (j != true)
+            {
+                foreach (SHDocVw.InternetExplorer wb in shells)
+                {
+                    if (wb.LocationName == desiredShell)
+                    {
+                        j = true;
+                        if (IeWait(wb))
+                        { return wb; }
+                    }
+                }
+            }
+            SHDocVw.InternetExplorer ie = IEGet(shells, desiredShell);
+            IeWait(ie);
+            return ie;
+        }
+
+        public static string ElementInteraction(
+            InternetExplorer wb, string elemID, string elemTagName, string action,
+            string valToSet, string elemType, int tagIndex)
+        {
+            /*
+             * Arguments are utilize by DOM elements in IE
+             * wb: the IE object handle can not be null and must be the current active instance
+             * elemID: Specific identifier you're looking for, can be the "Name" or "ID" of elem and is case sensitive
+             * elemTagName: The Tag name of your element. "INPUT", "A", "TD" etc...
+             * action: Can be either "Set", "Get", "Click" or "DoubleClick". All action types will be attempted
+             * valToSet: is only utilized if the action is Set. if not using set, ensure this val is null
+             * elemType: the types supported here are "ID" and "Name". this is the type of element you're looking for.
+             */
+
+            mshtml.HTMLDocument wbDoc = wb.Document;
+            mshtml.IHTMLElementCollection allItems;
+            int domLength;
+
+            if (elemType == "ID")
+            {
+                try
+                {
+                    allItems = wbDoc.getElementsByTagName("*");
+                    domLength = allItems.length;
+                    foreach (mshtml.IHTMLElement element in allItems)
+                    {
+                        if (element != null)
+                        {
+                            try
+                            {
+                                if (element.id == elemID)
+                                {
+                                    mshtml.IHTMLElement my_element = wbDoc.getElementById(elemID);
+                                    if (action == "Click")
+                                    {
+                                        try
+                                        {
+                                            my_element.click();
+                                            Console.ForegroundColor = ConsoleColor.Green;
+                                            Console.WriteLine("Click Event '1' Succeeded");
+                                            Console.ResetColor();
+                                        }
+                                        catch (Exception) { Console.ForegroundColor = ConsoleColor.Red; Console.WriteLine("Click Event '1' Failed"); Console.ResetColor(); }
+                                        try
+                                        {
+                                            my_element.onclick();
+                                            Console.ForegroundColor = ConsoleColor.Green;
+                                            Console.WriteLine("Click Event '2' Succeeded");
+                                            Console.ResetColor();
+                                        }
+                                        catch (Exception) { Console.ForegroundColor = ConsoleColor.Red; Console.WriteLine("Click Event '2' Failed"); Console.ResetColor(); return "Failed Action" + action; ; }
+                                        return "Succeeded";
+                                    }
+
+                                    if (action == "DoubleClick")
+                                    {
+                                        try
+                                        {
+                                            my_element.click();
+                                            Console.ForegroundColor = ConsoleColor.Green;
+                                            Console.WriteLine("DoubleClick Event '1' Succeeded");
+                                            Console.ResetColor();
+                                        }
+                                        catch (Exception) { Console.ForegroundColor = ConsoleColor.Red; Console.WriteLine("DoubleClick Event '1' Failed"); Console.ResetColor(); }
+                                        try
+                                        {
+                                            my_element.onclick();
+                                            Console.ForegroundColor = ConsoleColor.Green;
+                                            Console.WriteLine("DoubleClick Event '2' Succeeded");
+                                            Console.ResetColor();
+                                        }
+                                        catch (Exception) { Console.ForegroundColor = ConsoleColor.Red; Console.WriteLine("DoubleClick Event '2' Failed"); Console.ResetColor(); }
+                                        try
+                                        {
+                                            my_element.ondblclick();
+                                            Console.ForegroundColor = ConsoleColor.Green;
+                                            Console.WriteLine("DoubleClick Event '2' Succeeded");
+                                            Console.ResetColor();
+                                        }
+                                        catch (Exception) { Console.ForegroundColor = ConsoleColor.Red; Console.WriteLine("DoubleClick Event '3' Failed"); Console.ResetColor(); return "Failed Action" + action; ; }
+                                        return "Succeeded";
+                                    }
+
+                                    if (action == "Set")
+                                    {
+                                        try { my_element.innerText = valToSet; } catch (Exception) { }
+                                        try { my_element.onafterupdate(); ; } catch (Exception) { return "Failed Action" + action; }
+                                        return "Succeeded";
+                                    }
+
+                                    if (action == "Get")
+                                    {
+                                        try { return my_element.innerText; } catch (Exception) { return "Failed Action" + action; }
+                                    }
+                                }
+                            }
+                            catch (Exception) { Console.WriteLine("Non Null Element: " + element + "'s ID could not be retrieved."); return "Failed Action" + action; }
+                        }
+                    }
+                }
+                catch (Exception) { }
+            }
+            if (elemType == "Name")
+            {
+                try
+                {
+                    allItems = wbDoc.getElementsByTagName(elemTagName);
+                    domLength = allItems.length;
+
+                    string Needle = "name= \" + elemID + \"";
+                    int inStr = 0;
+
+                    foreach (mshtml.IHTMLElement element in allItems)
+                    {
+                        string Haystack = element.outerHTML;
+                        inStr = Haystack.IndexOfAny(Needle.ToCharArray(), 0);
+                        if (inStr != 0)
+                        {
+                            if (action == "Click")
+                            {
+                                try
+                                {
+                                    element.click();
+                                    Console.ForegroundColor = ConsoleColor.Green;
+                                    Console.WriteLine("Click Event '1' Succeeded");
+                                    Console.ResetColor();
+                                }
+                                catch (Exception) { Console.ForegroundColor = ConsoleColor.Red; Console.WriteLine("Click Event '1' Failed"); Console.ResetColor(); }
+                                try
+                                {
+                                    element.onclick();
+                                    Console.ForegroundColor = ConsoleColor.Green;
+                                    Console.WriteLine("Click Event '2' Succeeded");
+                                    Console.ResetColor();
+                                }
+                                catch (Exception) { Console.ForegroundColor = ConsoleColor.Red; Console.WriteLine("Click Event '2' Failed"); Console.ResetColor(); return "Failed Action" + action; ; }
+                                return "Succeeded";
+                            }
+
+                            if (action == "DoubleClick")
+                            {
+                                try
+                                {
+                                    element.click();
+                                    Console.ForegroundColor = ConsoleColor.Green;
+                                    Console.WriteLine("DoubleClick Event '1' Succeeded");
+                                    Console.ResetColor();
+                                }
+                                catch (Exception) { Console.ForegroundColor = ConsoleColor.Red; Console.WriteLine("DoubleClick Event '1' Failed"); Console.ResetColor(); }
+                                try
+                                {
+                                    element.onclick();
+                                    Console.ForegroundColor = ConsoleColor.Green;
+                                    Console.WriteLine("DoubleClick Event '2' Succeeded");
+                                    Console.ResetColor();
+                                }
+                                catch (Exception) { Console.ForegroundColor = ConsoleColor.Red; Console.WriteLine("DoubleClick Event '2' Failed"); Console.ResetColor(); }
+                                try
+                                {
+                                    element.ondblclick();
+                                    Console.ForegroundColor = ConsoleColor.Green;
+                                    Console.WriteLine("DoubleClick Event '2' Succeeded");
+                                    Console.ResetColor();
+                                }
+                                catch (Exception) { Console.ForegroundColor = ConsoleColor.Red; Console.WriteLine("DoubleClick Event '3' Failed"); Console.ResetColor(); return "Failed Action" + action; ; }
+                                return "Succeeded";
+                            }
+
+                            if (action == "Set")
+                            {
+                                try { element.innerText = valToSet; } catch (Exception) { }
+                                try { element.onafterupdate(); ; } catch (Exception) { return "Failed Action" + action; }
+                                return "Succeeded";
+                            }
+
+                            if (action == "Get")
+                            {
+                                try { return element.innerText; } catch (Exception) { return "Failed Action" + action; }
+                            }
+                        }
+                        inStr = 0;
+                        Haystack = null;
+                    }
+                    //return "Failed Action" + action;
+                }
+                catch (Exception) { return "Failed Action" + action; }
+            }
+
+            if (elemType == "Index")
+            {
+                try
+                {
+                    Console.WriteLine("Trying to find:" + elemTagName + "[ " + tagIndex + "]");
+                    allItems = wbDoc.getElementsByTagName(elemTagName);
+                    domLength = allItems.length;
+                    int elemCounter = 0;
+                    Console.WriteLine("Lenght of: " + elemTagName + " = " + allItems.length);
+                    foreach (mshtml.IHTMLElement element in allItems)
+                    {
+                        if (elemCounter == tagIndex)
+                        {
+                            Console.WriteLine(elemCounter + " = " + tagIndex);
+                            if (action == "Click")
+                            {
+                                try
+                                {
+                                    element.click();
+                                    Console.ForegroundColor = ConsoleColor.Green;
+                                    Console.WriteLine("Click Event '1' Succeeded");
+                                    Console.ResetColor();
+                                }
+                                catch (Exception) { Console.ForegroundColor = ConsoleColor.Red; Console.WriteLine("Click Event '1' Failed"); Console.ResetColor(); }
+                                try
+                                {
+                                    element.onclick();
+                                    Console.ForegroundColor = ConsoleColor.Green;
+                                    Console.WriteLine("Click Event '2' Succeeded");
+                                    Console.ResetColor();
+                                }
+                                catch (Exception) { Console.ForegroundColor = ConsoleColor.Red; Console.WriteLine("Click Event '2' Failed"); Console.ResetColor(); return "Failed Action" + action; ; }
+                                return "Succeeded";
+                            }
+
+                            if (action == "DoubleClick")
+                            {
+                                try
+                                {
+                                    element.click();
+                                    element.click();
+                                    Console.ForegroundColor = ConsoleColor.Green;
+                                    Console.WriteLine("DoubleClick Event '1' Succeeded");
+                                    Console.ResetColor();
+                                }
+                                catch (Exception) { Console.ForegroundColor = ConsoleColor.Red; Console.WriteLine("DoubleClick Event '1' Failed"); Console.ResetColor(); }
+                                try
+                                {
+                                    element.onclick();
+                                    Console.ForegroundColor = ConsoleColor.Green;
+                                    Console.WriteLine("DoubleClick Event '2' Succeeded");
+                                    Console.ResetColor();
+                                }
+                                catch (Exception) { Console.ForegroundColor = ConsoleColor.Red; Console.WriteLine("DoubleClick Event '2' Failed"); Console.ResetColor(); }
+                                try
+                                {
+                                    element.ondblclick();
+                                    Console.ForegroundColor = ConsoleColor.Green;
+                                    Console.WriteLine("DoubleClick Event '3' Succeeded");
+                                    Console.ResetColor();
+                                }
+                                catch (Exception) { Console.ForegroundColor = ConsoleColor.Red; Console.WriteLine("DoubleClick Event '3' Failed"); Console.ResetColor(); return "Failed Action" + action; }
+                                return "Succeeded";
+                            }
+
+                            if (action == "Set")
+                            {
+                                try { element.innerText = valToSet; } catch (Exception) { }
+                                try { element.onafterupdate(); ; } catch (Exception) { return "Failed Action" + action; }
+                                return "Succeeded";
+                            }
+
+                            if (action == "Get")
+                            {
+                                try { return element.innerText; } catch (Exception) { return "Failed Action" + action; }
+                            }
+                        }
+                        elemCounter++;
+                    }
+                }
+                catch (Exception) { }
+            }
+            return "Failed Action" + action;
+        }
+    }
+}
