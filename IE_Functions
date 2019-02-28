@@ -32,8 +32,8 @@ namespace Neuro
                 }
                 Console.WriteLine(wb.LocationName);
             }
-            Console.WriteLine("Shell not found, Starting new IE instance for " + Desired + ".fyiblue.com/arisui/login.htm");
-            string newInstance = Desired + ".fyiblue.com/arisui/login.htm";
+            Console.WriteLine("Shell not found, Starting new IE instance for " + Desired + "[withheld]");
+            string newInstance = Desired + "[withheld]";
             Process.Start("iexplore.exe", newInstance);
             while (j != true)
             {
